@@ -136,6 +136,10 @@ type ConnectionOptions struct {
 
 	// ToS class name marked on outbound packets.
 	TosPriority tos.ToS
+
+	// HealthChecks configures active connection health checking for this channel.
+	// By default, health checks are not enabled.
+	HealthChecks HealthCheckOptions
 }
 
 // connectionEvents are the events that can be triggered by a connection.
@@ -186,6 +190,10 @@ type Connection struct {
 	// remotePeerAddress is used as a cache for remote peer address parsed into individual
 	// components that can be used to set peer tags on OpenTracing Span.
 	remotePeerAddress peerAddressComponents
+
+	// healthCheckQuit is used to signal the health checks to stop.
+	healthCheckQuit    chan struct{}
+	healthCheckStopped atomic.Bool
 }
 
 type peerAddressComponents struct {
@@ -237,6 +245,7 @@ func (co ConnectionOptions) withDefaults() ConnectionOptions {
 	if co.SendBufferSize <= 0 {
 		co.SendBufferSize = defaultConnectionBufferSize
 	}
+	co.HealthChecks = co.HealthChecks.withDefaults()
 	return co
 }
 
@@ -297,6 +306,7 @@ func (ch *Channel) newConnection(conn net.Conn, initialID uint32, outboundHP str
 		handler:           ch.handler,
 		events:            events,
 		commonStatsTags:   ch.commonStatsTags,
+		healthCheckQuit:   make(chan struct{}),
 	}
 
 	if tosPriority := opts.TosPriority; tosPriority > 0 {
@@ -346,6 +356,10 @@ func (c *Connection) callOnActive() {
 
 	if f := c.events.OnActive; f != nil {
 		f(c)
+	}
+
+	if c.opts.HealthChecks.enabled() {
+		go c.healthCheck(c.connID)
 	}
 }
 
@@ -536,6 +550,8 @@ func (c *Connection) connectionError(site string, err error) error {
 			ErrField(err),
 		}
 	}
+
+	c.stophealthCheck()
 	err = c.logConnectionError(site, err)
 	c.close(closeLogFields...)
 
@@ -817,7 +833,7 @@ func (c *Connection) closeNetwork() {
 	// closed; no need to close the send channel (and closing the send
 	// channel would be dangerous since other goroutine might be sending)
 	c.log.Debugf("Closing underlying network connection")
-	c.closeNetworkCalled.Inc()
+	c.stophealthCheck()
 	if err := c.conn.Close(); err != nil {
 		c.log.WithFields(
 			LogField{"remotePeer", c.remotePeerInfo},
