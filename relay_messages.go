@@ -31,6 +31,7 @@ var (
 	_callerNameKeyBytes      = []byte(CallerName)
 	_routingDelegateKeyBytes = []byte(RoutingDelegate)
 	_routingKeyKeyBytes      = []byte(RoutingKey)
+	_shardKeyBytes	 	 = []byte(ShardKey)
 )
 
 const (
@@ -87,7 +88,7 @@ func (cr lazyCallRes) OK() bool {
 type lazyCallReq struct {
 	*Frame
 
-	caller, method, delegate, key []byte
+	caller, method, delegate, key, shard []byte
 }
 
 // TODO: Consider pooling lazyCallReq and using pointers to the struct.
@@ -121,6 +122,8 @@ func newLazyCallReq(f *Frame) lazyCallReq {
 			cr.delegate = val
 		} else if bytes.Equal(key, _routingKeyKeyBytes) {
 			cr.key = val
+		} else if bytes.Equal(key, _shardKeyBytes) {
+			cr.shard = val
 		}
 	}
 
@@ -154,6 +157,11 @@ func (f lazyCallReq) Method() []byte {
 // RoutingDelegate returns the routing delegate for this call req, if any.
 func (f lazyCallReq) RoutingDelegate() []byte {
 	return f.delegate
+}
+
+// Shard returns the sharding key for this call req, if any.
+func (f lazyCallReq) Shard() []byte {
+	return f.shard
 }
 
 // RoutingKey returns the routing delegate for this call req, if any.
