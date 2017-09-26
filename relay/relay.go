@@ -26,7 +26,7 @@ package relay
 
 import (
 	"time"
-	"github.com/uber/tchannel-go"
+	"github.com/opentracing/opentracing-go"
 )
 
 // CallFrame is an interface that abstracts access to the call req frame.
@@ -47,7 +47,7 @@ type CallFrame interface {
 	// TTL returns the TTL of this call frame
 	TTL() time.Duration
 	// Span returns tchannel.Span for relayer to edit tracing information
-	Span() tchannel.Span
+	SpanContext(opentracing.Tracer) (opentracing.SpanContext, error)
 }
 
 // RateLimitDropError is the error that should be returned from

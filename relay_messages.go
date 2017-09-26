@@ -25,6 +25,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"time"
+	"github.com/opentracing/opentracing-go"
+	"github.com/vektra/errors"
 )
 
 var (
@@ -184,6 +186,16 @@ func (f lazyCallReq) SetTTL(d time.Duration) {
 // Span returns the Span
 func (f lazyCallReq) Span() Span {
 	return callReqSpan(f.Frame)
+}
+
+// SpanContext returns the SpanContext if zipkin format supported.
+func (f lazyCallReq) SpanContext(tracer opentracing.Tracer) (opentracing.SpanContext, error) {
+	span := f.Span()
+	spanCtx, err := tracer.Extract(zipkinSpanFormat, &span)
+	if err != nil {
+		return nil, errors.New("Failed to extract Zipkin-style span.")
+	}
+	return spanCtx, nil
 }
 
 // HasMoreFragments returns whether the callReq has more fragments.
