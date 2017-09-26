@@ -24,6 +24,11 @@
 // backwards-compatibility guarantee.
 package relay
 
+import (
+	"time"
+	"github.com/uber/tchannel-go"
+)
+
 // CallFrame is an interface that abstracts access to the call req frame.
 type CallFrame interface {
 	// Caller is the name of the originating service.
@@ -37,6 +42,12 @@ type CallFrame interface {
 	// RoutingKey may refer to an alternate traffic group instead of the
 	// traffic group identified by the service name.
 	RoutingKey() []byte
+	// Shard is the sharding key, relayer might use this as a hint for peer selecting
+	Shard() []byte
+	// TTL returns the TTL of this call frame
+	TTL() time.Duration
+	// Span returns tchannel.Span for relayer to edit tracing information
+	Span() tchannel.Span
 }
 
 // RateLimitDropError is the error that should be returned from
